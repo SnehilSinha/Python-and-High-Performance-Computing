@@ -2,30 +2,9 @@ from os.path import join
 import sys
 
 import numpy as np
+import cupy as cp
 import time
 
-try:
-    profile
-except NameError:
-    def profile(func):
-        return func
-
-
-
-@profile
-def jacobi(u, interior_mask, max_iter, atol=1e-6):
-    u = np.copy(u)
-
-    for i in range(max_iter):
-        # Compute average of left, right, up and down neighbors, see eq. (1)
-        u_new = 0.25 * (u[1:-1, :-2] + u[1:-1, 2:] + u[:-2, 1:-1] + u[2:, 1:-1])
-        u_new_interior = u_new[interior_mask]
-        delta = np.abs(u[1:-1, 1:-1][interior_mask] - u_new_interior).max()
-        u[1:-1, 1:-1][interior_mask] = u_new_interior
-
-        if delta < atol:
-            break
-    return u
 
 ##### LOAD DATA FUNCTION #####
 def load_data(load_dir, bid):
@@ -34,6 +13,23 @@ def load_data(load_dir, bid):
     u[1:-1, 1:-1] = np.load(join(load_dir, f"{bid}_domain.npy"))
     interior_mask = np.load(join(load_dir, f"{bid}_interior.npy"))
     return u, interior_mask
+
+#### CuPy IMPLEMENTATION ######
+def jacobi_cupy(u_host, interior_mask_host, max_iter, atol=1e-6):
+    u = cp.asarray(u_host)
+    interior_mask = cp.asarray(interior_mask_host)
+
+    for i in range(max_iter):
+        # Compute average of left, right, up and down neighbors, see eq. (1)
+        u_new = 0.25 * (u[1:-1, :-2] + u[1:-1, 2:] + u[:-2, 1:-1] + u[2:, 1:-1])
+        u_new_interior = u_new[interior_mask]
+        delta = cp.abs(u[1:-1, 1:-1][interior_mask] - u_new_interior).max()
+        u[1:-1, 1:-1][interior_mask] = u_new_interior
+
+        if delta < atol:
+            break
+    return cp.asnumpy(u)
+
 
 ##### STATISTICS #####
 def summary_stats(u, interior_mask):
@@ -78,21 +74,21 @@ if __name__ == '__main__':
     run_times = []
     for i, (u0, interior_mask) in enumerate(zip(all_u0, all_interior_mask)):
         start = time.time() #run time start
-        u = jacobi(u0, interior_mask, MAX_ITER, ABS_TOL)
+        u = jacobi_cupy(u0, interior_mask, MAX_ITER, ABS_TOL)
         end = time.time()
         elapsed = end - start
         run_times.append(elapsed) #list of all run times
         all_u[i] = u
-        print(f"\n Run time for {building_ids[i]}: {elapsed:.4f} seconds")
+        print(f"Run time using CuPy for {building_ids[i]}: {elapsed:.4f} seconds \n")
 
     # Print summary statistics in CSV format
     stat_keys = ['mean_temp', 'std_temp', 'pct_above_18', 'pct_below_15']
     print('building_id, ' + ', '.join(stat_keys))  # CSV header
     for bid, u, interior_mask in zip(building_ids, all_u, all_interior_mask):
         stats = summary_stats(u, interior_mask)
-        print(f"{bid},", ", ".join(str(stats[k]) for k in stat_keys))
+        print(f" {bid},", ", ".join(str(stats[k]) for k in stat_keys))
 
 
 ##### AVERAGE RUN TIME #####
 avg_run_time = sum(run_times) / len(run_times)
-print(f"\n Average run time: {avg_run_time:.2f} seconds")
+print(f"\n Average run time using CuPy: {avg_run_time:.2f} seconds")

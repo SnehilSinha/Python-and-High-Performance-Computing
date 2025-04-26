@@ -3,17 +3,11 @@ import sys
 
 import numpy as np
 import time
+from numba import njit
 
-try:
-    profile
-except NameError:
-    def profile(func):
-        return func
-
-
-
-@profile
-def jacobi(u, interior_mask, max_iter, atol=1e-6):
+##### NUMBA JIT ON THE CPU #####
+@njit
+def jacobi_numba(u, interior_mask, max_iter, atol=1e-6):
     u = np.copy(u)
 
     for i in range(max_iter):
@@ -78,7 +72,7 @@ if __name__ == '__main__':
     run_times = []
     for i, (u0, interior_mask) in enumerate(zip(all_u0, all_interior_mask)):
         start = time.time() #run time start
-        u = jacobi(u0, interior_mask, MAX_ITER, ABS_TOL)
+        u = jacobi_numba(u0, interior_mask, MAX_ITER, ABS_TOL)
         end = time.time()
         elapsed = end - start
         run_times.append(elapsed) #list of all run times
