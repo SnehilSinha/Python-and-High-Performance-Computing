@@ -1,0 +1,10 @@
+#!/bin/bash
+#BSUB -J q6-dynamic
+#BSUB -o q6_output.txt
+#BSUB -e q6_error.txt
+#BSUB -W 0:30
+#BSUB -n 8
+#BSUB -R "rusage[mem=4096]"
+#BSUB -R "span[hosts=1]"
+
+bash run_q6_dynamic.sh
